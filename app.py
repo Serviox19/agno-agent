@@ -43,8 +43,11 @@ ollama_model = Ollama(id="minimax-m2.5")
 # Cheap workhorse model — tool-calling, gathering, analysis
 deepseek_model = OpenRouter(id="deepseek/deepseek-chat-v3-0324")
 
-# Grok via xAI Responses API — Agent Tools (x_search, web_search), no per-post fees
-grok_model = XAIResponses(id="grok-4-1-fast-reasoning")
+# Grok via xAI direct — has native x_search for live X/Twitter data
+xai_model = XAIResponses(id="grok-4-1-fast-reasoning")
+
+# Grok via OpenRouter — for compilation without x_search costs
+grok_openrouter = OpenRouter(id="x-ai/grok-3-beta")
 
 # ─────────────────────────────────────────────
 # Agent 1: Life Sarge (Andrew Tate style)
@@ -111,85 +114,97 @@ life_sarge = Agent(
 )
 
 # ─────────────────────────────────────────────
-# Agent 2: X/Twitter News — Gatherer + Analyst Team
+# Agent 2: X/Twitter News — 3-Stage Pipeline
 # ─────────────────────────────────────────────
-news_gatherer = Agent(
-    name="X News Gatherer",
-    id="x-news-gatherer",
-    role="Raw news and tweet collector from X/Twitter and the web",
-    model=grok_model,
+
+# Stage 1: X Fetcher — xAI direct with x_search for live X data
+x_fetcher = Agent(
+    name="X Fetcher",
+    id="x-fetcher",
+    role="Live X/Twitter data fetcher",
+    model=xai_model,
     db=db,
-    tools=[MongoSaveTools(default_collection="news_raw")],
+    tools=[],
     instructions=[
-        # ── Gathering Protocol ──
-        "You are a news wire service. Your ONLY job is to fetch raw data — do NOT analyze or editorialize.",
-        "Search X/Twitter for trending topics, breaking news, and what people are talking about.",
-        "Search the web for additional context on developing stories.",
-        "Always include: the post/article text, author, timestamp, and source URL when available.",
-
-        # ── Topics & Filtering ──
-        "Priority topics: business, finance, crypto, politics, geopolitical events, technology trends (especially AI advancements, new tools, developer hype cycles — e.g. everyone buying Mac Minis for local AI, new model drops, open-source breakthroughs), and major social events/cultural moments dominating the timeline.",
-        "IGNORE celebrity gossip, rage bait, trivial drama, memes, and low-signal entertainment — UNLESS it has massive engagement (50k+ likes or 10k+ retweets). If the whole timeline is talking about it, include it regardless of topic.",
-        "For crypto: focus on regulatory moves, major project updates, institutional adoption, and significant price catalysts — not shitcoin pumps.",
-        "For politics/geopolitics: focus on policy changes, conflicts, sanctions, elections, trade deals — things that move markets or shift power.",
-        "For business/finance: earnings that matter, M&A, layoffs at scale, Fed/central bank moves, economic data drops.",
-
-        # ── Output Format & Persistence ──
-        "Return structured data: group by topic, include all raw details.",
-        "Do NOT summarize. Do NOT give opinions. Just deliver the raw goods.",
-        "After fetching, save each notable item to MongoDB using save_headline with collection='news_raw'. Pass a short headline, the source, and topic tags. Do NOT try to save full article text.",
+        "You fetch raw data from X/Twitter. That's your ONLY job.",
+        "Search X for trending topics, breaking news, viral posts, and what people are talking about.",
+        "Return RAW data: post text, author/handle, timestamp, engagement (likes/reposts), and post URL.",
+        "Do NOT analyze. Do NOT summarize. Do NOT editorialize. Just fetch and return.",
+        "Group results by topic if multiple topics are found.",
+        "If asked about a specific topic, focus your search on that topic.",
     ],
     add_datetime_to_context=True,
     markdown=True,
 )
 
+# Stage 2: X Compiler — Grok via OpenRouter with web_search for context
+x_compiler = Agent(
+    name="X Compiler",
+    id="x-compiler",
+    role="News compiler and context enricher",
+    model=grok_openrouter,
+    db=db,
+    tools=[WebSearchTools(), MongoSaveTools(default_collection="news_raw")],
+    instructions=[
+        "You receive raw X/Twitter data from the X Fetcher.",
+        "Your job is to ENRICH and STRUCTURE the data — not analyze it yet.",
+        "Use web search to add context: What's the backstory? Who are the key players? What triggered this?",
+        "Fill in gaps the raw X data doesn't provide.",
+        "Structure the output cleanly: group by topic, include both X posts and web context.",
+        "Save notable items to MongoDB using save_headline with collection='news_raw'.",
+        "Do NOT write the final digest — that's the Analyst's job. Just compile and enrich.",
+    ],
+    add_datetime_to_context=True,
+    markdown=True,
+)
+
+# Stage 3: News Analyst — Deepseek for analysis and digest
 news_analyst = Agent(
-    name="X News Analyst",
-    id="x-news-analyst",
-    role="News analysis and trend synthesis specialist",
+    name="News Analyst",
+    id="news-analyst",
+    role="News analysis and digest writer",
     model=deepseek_model,
     db=db,
     tools=[MongoSaveTools(default_collection="news_digests")],
     instructions=[
-        # ── Analysis Protocol ──
-        "You receive raw news data from the Gatherer. Your job is to make sense of it.",
-        "For each story or trend, answer: What happened? Why does it matter? What's the implication?",
-        "Connect dots between stories — identify patterns, emerging narratives, and second-order effects.",
-        "Separate signal from noise. Aggressively filter out fluff. If a story doesn't impact money, markets, power, or society at scale — cut it.",
-        "Exception: if something trivial is absolutely dominating the timeline (viral monologue, cultural moment everyone's reacting to), include it with a note on why it's trending. Servio doesn't want to be out of the loop on what everyone's talking about.",
+        "You receive compiled news data from the X Compiler.",
+        "Your job is to ANALYZE and write the final digest.",
+        "For each story: What happened? Why does it matter? What's the implication?",
+        "Connect dots — identify patterns, emerging narratives, second-order effects.",
+        "Filter aggressively. If it doesn't impact money, markets, power, or society — cut it.",
+        "Exception: if something trivial is dominating the timeline, include it with context on why.",
 
         # ── Output Format ──
-        "Structure your digest with clear sections: Headlines, Deep Dives, Market-Moving, Worth Watching.",
-        "Headlines: 1-2 sentence summary of each major story.",
-        "Deep Dives: 2-3 stories that deserve more context. Explain the 'so what'.",
-        "Market-Moving: Anything that could impact crypto, stocks, or the broader economy.",
-        "Worth Watching: Emerging stories that aren't big yet but could blow up.",
-        "Keep it concise. Servio is busy. Respect his time.",
+        "Structure: Headlines, Deep Dives, Market-Moving, Worth Watching.",
+        "Headlines: 1-2 sentence summary per story.",
+        "Deep Dives: 2-3 stories with fuller context and 'so what'.",
+        "Market-Moving: Anything affecting crypto, stocks, economy.",
+        "Worth Watching: Emerging stories that could blow up.",
 
         # ── Tone ──
-        "Write like a sharp, opinionated analyst — not a bland news anchor.",
-        "Have a point of view. If something is bullshit, say so. If something is significant, explain why.",
+        "Write like a sharp analyst, not a news anchor. Have opinions. Be direct.",
 
         # ── Persistence ──
-        "After completing your analysis, save a summary to MongoDB using save_text with collection='news_digests'. Pass a short title, a brief summary (under 500 chars), and topic tags. Do NOT paste the full digest — just the key points.",
-        "You can query past digests from 'news_digests' using query_documents to reference previous analysis and track evolving stories.",
+        "Save a summary to MongoDB using save_text with collection='news_digests'.",
     ],
     add_datetime_to_context=True,
     update_memory_on_run=True,
     markdown=True,
 )
 
+# Team coordinates the 3-stage pipeline
 news_team = Team(
     name="X News Desk",
     id="x-news-desk",
     model=deepseek_model,
-    members=[news_gatherer, news_analyst],
+    members=[x_fetcher, x_compiler, news_analyst],
     db=db,
     instructions=[
-        "You coordinate a two-stage news pipeline.",
-        "Step 1: Delegate to X News Gatherer to fetch raw tweets and web search results.",
-        "Step 2: Pass the gathered data to X News Analyst for analysis and digest.",
-        "Always run both stages. Never skip the gatherer and guess.",
+        "You coordinate a three-stage news pipeline.",
+        "Step 1: X Fetcher — fetch raw X/Twitter data.",
+        "Step 2: X Compiler — enrich with web context and structure.",
+        "Step 3: News Analyst — analyze and write the final digest.",
+        "Always run all three stages in order. Never skip steps.",
         "Return the Analyst's final digest to the user.",
     ],
     markdown=True,
@@ -287,7 +302,7 @@ command_center = Team(
 # ─────────────────────────────────────────────
 agent_os = AgentOS(
     id="personal-command-center",
-    agents=[life_sarge, news_gatherer, news_analyst, scraper_agent, crypto_agent],
+    agents=[life_sarge, x_fetcher, x_compiler, news_analyst, scraper_agent, crypto_agent],
     teams=[news_team, command_center],
     db=db,
     interfaces=[
