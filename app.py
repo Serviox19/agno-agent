@@ -8,7 +8,7 @@ from agno.agent import Agent
 from agno.db.mongo import MongoDb
 from agno.models.ollama import Ollama
 from agno.models.openrouter import OpenRouter
-from agno.models.xai import xAI
+from models.xai_responses import XAIResponses
 from agno.os import AgentOS
 from agno.os.interfaces.slack import Slack
 from agno.team.team import Team
@@ -44,11 +44,8 @@ ollama_model = Ollama(id="minimax-m2.5")
 # Cheap workhorse model — tool-calling, gathering, analysis
 deepseek_model = OpenRouter(id="deepseek/deepseek-chat-v3-0324")
 
-# Grok via xAI — native X search (no per-post fees), use for broad news gathering
-grok_model = xAI(
-    id="grok-4-1-fast-reasoning",
-    search_parameters={"mode": "on", "max_search_results": 15},
-)
+# Grok via xAI Responses API — Agent Tools (x_search, web_search), no per-post fees
+grok_model = XAIResponses(id="grok-4-1-fast-reasoning")
 
 # ─────────────────────────────────────────────
 # Agent 1: Life Sarge (Andrew Tate style)
