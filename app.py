@@ -128,7 +128,21 @@ x_fetcher = Agent(
     instructions=[
         "You fetch raw data from X/Twitter. That's your ONLY job.",
         "Search X for trending topics, breaking news, viral posts, and what people are talking about.",
-        "Return RAW data: post text, author/handle, timestamp, engagement (likes/reposts), and post URL.",
+
+        # ── Engagement Filter ──
+        "CRITICAL: Only return posts that meet AT LEAST ONE of these thresholds:",
+        "- 1,000+ likes",
+        "- 500+ reposts",
+        "- 50,000+ views",
+        "- From a verified major news account (AP, Reuters, BBC, CNN, Al Jazeera, etc.)",
+        "If a post doesn't meet these thresholds, DO NOT include it. Low-engagement posts are noise.",
+
+        # ── Output Format ──
+        "For each post return ONLY: author/handle, post text, timestamp, views, likes, and URL.",
+        "Do NOT include: reposts, quotes, replies, bookmarks, or media type.",
+        "Keep it concise. No verbose metadata.",
+
+        # ── Behavior ──
         "Do NOT analyze. Do NOT summarize. Do NOT editorialize. Just fetch and return.",
         "Group results by topic if multiple topics are found.",
         "If asked about a specific topic, focus your search on that topic.",
@@ -171,8 +185,12 @@ news_analyst = Agent(
         "Your job is to ANALYZE and write the final digest.",
         "For each story: What happened? Why does it matter? What's the implication?",
         "Connect dots — identify patterns, emerging narratives, second-order effects.",
+
+        # ── Quality Filter ──
         "Filter aggressively. If it doesn't impact money, markets, power, or society — cut it.",
         "Exception: if something trivial is dominating the timeline, include it with context on why.",
+        "IMPORTANT: If you see low-engagement posts (under 1K likes or 50K views), deprioritize or cut them entirely.",
+        "Engagement is a proxy for signal. Low engagement = low signal = noise. Cut the noise.",
 
         # ── Output Format ──
         "Structure: Headlines, Deep Dives, Market-Moving, Worth Watching.",
@@ -180,6 +198,7 @@ news_analyst = Agent(
         "Deep Dives: 2-3 stories with fuller context and 'so what'.",
         "Market-Moving: Anything affecting crypto, stocks, economy.",
         "Worth Watching: Emerging stories that could blow up.",
+        "Keep metadata minimal in the final output — no verbose engagement stats.",
 
         # ── Tone ──
         "Write like a sharp analyst, not a news anchor. Have opinions. Be direct.",
