@@ -1,0 +1,16 @@
+agno
+openai
+ollama
+pymongo[srv]
+certifi
+fastapi
+uvicorn
+slack-sdk
+tweepy
+python-dotenv
+firecrawl-py
+ddgs
+beautifulsoup4
+sqlalchemy
+apscheduler
+httpx
