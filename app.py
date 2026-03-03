@@ -352,8 +352,8 @@ app = agent_os.get_app()
 # ─────────────────────────────────────────────
 # Slack Slash Command: /snooze
 # ─────────────────────────────────────────────
-@app.post("/slack/snooze", response_class=PlainTextResponse)
-async def slack_snooze(
+@app.post("/slack/sarge-snooze", response_class=PlainTextResponse)
+async def slack_sarge_snooze(
     text: str = Form(""),
     channel_id: str = Form(""),
 ):
