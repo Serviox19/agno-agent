@@ -28,6 +28,7 @@ class XAIResponses(OpenAIResponses):
     timeout: float = 300.0  # Reasoning models can be slow
 
     def _get_client_params(self) -> Dict[str, Any]:
+        # Set api_key BEFORE calling super to prevent it from looking for OPENAI_API_KEY
         if not self.api_key:
             self.api_key = getenv("XAI_API_KEY")
             if not self.api_key:
@@ -35,10 +36,17 @@ class XAIResponses(OpenAIResponses):
                     message="XAI_API_KEY not set. Set the XAI_API_KEY environment variable.",
                     model_name=self.name,
                 )
-        params = super()._get_client_params()
-        params["base_url"] = self.base_url
-        params["api_key"] = self.api_key
-        return params
+        
+        # Build params directly instead of calling super (which checks OPENAI_API_KEY)
+        base_params = {
+            "api_key": self.api_key,
+            "base_url": self.base_url,
+            "timeout": self.timeout,
+            "max_retries": self.max_retries,
+            "default_headers": self.default_headers,
+            "default_query": self.default_query,
+        }
+        return {k: v for k, v in base_params.items() if v is not None}
 
     def get_request_params(
         self,
