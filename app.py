@@ -15,7 +15,6 @@ from agno.team.team import Team
 from agno.tools.firecrawl import FirecrawlTools
 from agno.tools.websearch import WebSearchTools
 from agno.tools.website import WebsiteTools
-from agno.tools.x import XTools
 from tools.mongo_save import MongoSaveTools
 
 # ─────────────────────────────────────────────
@@ -120,15 +119,13 @@ news_gatherer = Agent(
     role="Raw news and tweet collector from X/Twitter and the web",
     model=grok_model,
     db=db,
-    tools=[XTools(include_post_metrics=True), WebSearchTools(), MongoSaveTools(default_collection="news_raw")],
+    tools=[MongoSaveTools(default_collection="news_raw")],
     instructions=[
-        # ── Gathering Protocol (Hybrid: Grok native X + XTools fallback) ──
+        # ── Gathering Protocol ──
         "You are a news wire service. Your ONLY job is to fetch raw data — do NOT analyze or editorialize.",
-        "You have two ways to get X/Twitter data:",
-        "1. PREFERRED: Use your built-in X search (Grok native). When asked for news, trending topics, or 'what are people saying about X', search X directly via your native capability. This is free per-post and covers broad monitoring.",
-        "2. FALLBACK: Use XTools (search_posts, get_home_timeline) ONLY when you need: specific account timelines, exact engagement metrics, or targeted lookups that native search cannot provide. XTools costs per-post — use sparingly.",
-        "Use WebSearchTools for non-X web context, cross-referencing, and fuller story context.",
-        "Always include: the original post text, author, timestamp, engagement metrics (when available), and source URL.",
+        "Search X/Twitter for trending topics, breaking news, and what people are talking about.",
+        "Search the web for additional context on developing stories.",
+        "Always include: the post/article text, author, timestamp, and source URL when available.",
 
         # ── Topics & Filtering ──
         "Priority topics: business, finance, crypto, politics, geopolitical events, technology trends (especially AI advancements, new tools, developer hype cycles — e.g. everyone buying Mac Minis for local AI, new model drops, open-source breakthroughs), and major social events/cultural moments dominating the timeline.",
@@ -136,7 +133,6 @@ news_gatherer = Agent(
         "For crypto: focus on regulatory moves, major project updates, institutional adoption, and significant price catalysts — not shitcoin pumps.",
         "For politics/geopolitics: focus on policy changes, conflicts, sanctions, elections, trade deals — things that move markets or shift power.",
         "For business/finance: earnings that matter, M&A, layoffs at scale, Fed/central bank moves, economic data drops.",
-        "If specific accounts are provided, use XTools to pull those. Otherwise rely on Grok's native X search for broad coverage.",
 
         # ── Output Format & Persistence ──
         "Return structured data: group by topic, include all raw details.",
