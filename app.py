@@ -1,4 +1,5 @@
 import os
+from datetime import datetime, timedelta
 
 from dotenv import load_dotenv
 
@@ -16,14 +17,24 @@ from agno.tools.firecrawl import FirecrawlTools
 from agno.tools.websearch import WebSearchTools
 from agno.tools.website import WebsiteTools
 from tools.mongo_save import MongoSaveTools
+from fastapi import Form
+from fastapi.responses import PlainTextResponse
+from pymongo import MongoClient
 
 # ─────────────────────────────────────────────
 # Database
 # ─────────────────────────────────────────────
-db = MongoDb(
-    db_url=os.getenv("MONGO_URL", "mongodb://localhost:27017"),
-    db_name=os.getenv("MONGO_DB_NAME", "agno_agents"),
-)
+MONGO_URL = os.getenv("MONGO_URL", "mongodb://localhost:27017")
+MONGO_DB_NAME = os.getenv("MONGO_DB_NAME", "agno_agents")
+
+db = MongoDb(db_url=MONGO_URL, db_name=MONGO_DB_NAME)
+
+# Direct pymongo client for snooze collection
+mongo_client = MongoClient(MONGO_URL)
+snooze_collection = mongo_client[MONGO_DB_NAME]["sarge_snooze"]
+
+# Sarge channel ID for slash command validation
+SARGE_CHANNEL = os.getenv("SLACK_SARGE_CHANNEL", "")
 
 # ─────────────────────────────────────────────
 # Models
@@ -336,6 +347,52 @@ agent_os = AgentOS(
 )
 
 app = agent_os.get_app()
+
+
+# ─────────────────────────────────────────────
+# Slack Slash Command: /snooze
+# ─────────────────────────────────────────────
+@app.post("/slack/snooze", response_class=PlainTextResponse)
+async def slack_snooze(
+    text: str = Form(""),
+    channel_id: str = Form(""),
+):
+    """Handle /snooze slash command from Slack."""
+    # Only allow in the Sarge channel
+    if SARGE_CHANNEL and channel_id != SARGE_CHANNEL:
+        return "This command only works in the Life Sarge channel."
+
+    text = text.strip().lower()
+
+    # /snooze status
+    if text == "status" or text == "":
+        snooze = snooze_collection.find_one({"_id": "sarge"})
+        if snooze and snooze.get("until") and snooze["until"] > datetime.now():
+            until = snooze["until"].strftime("%A %b %d at %I:%M %p")
+            return f"Life Sarge is snoozed until {until}."
+        return "Life Sarge is active. No snooze set."
+
+    # /snooze off
+    if text == "off":
+        snooze_collection.delete_one({"_id": "sarge"})
+        return "Snooze cancelled. Life Sarge is back on duty."
+
+    # /snooze <days>
+    try:
+        days = int(text)
+        if days < 1 or days > 30:
+            return "Snooze must be between 1 and 30 days."
+        until = datetime.now() + timedelta(days=days)
+        snooze_collection.update_one(
+            {"_id": "sarge"},
+            {"$set": {"until": until}},
+            upsert=True,
+        )
+        until_str = until.strftime("%A %b %d at %I:%M %p")
+        return f"Life Sarge snoozed for {days} day(s) — until {until_str}."
+    except ValueError:
+        return "Usage: /snooze <days> | /snooze off | /snooze status"
+
 
 if __name__ == "__main__":
     agent_os.serve(app="app:app", port=7777, reload=True)

@@ -14,6 +14,7 @@ import httpx
 from apscheduler.schedulers.blocking import BlockingScheduler
 from apscheduler.triggers.date import DateTrigger
 from dotenv import load_dotenv
+from pymongo import MongoClient
 from slack_sdk import WebClient
 
 load_dotenv()
@@ -24,7 +25,22 @@ slack_client = WebClient(token=os.getenv("SLACK_TOKEN"))
 # Slack channel IDs — right-click channel in Slack → "View channel details" → copy ID at bottom
 SARGE_CHANNEL = os.getenv("SLACK_SARGE_CHANNEL", "")  # #life-goals channel ID
 
+# MongoDB for snooze check
+MONGO_URL = os.getenv("MONGO_URL", "mongodb://localhost:27017")
+MONGO_DB_NAME = os.getenv("MONGO_DB_NAME", "agno_agents")
+mongo_client = MongoClient(MONGO_URL)
+snooze_collection = mongo_client[MONGO_DB_NAME]["sarge_snooze"]
+
 scheduler = BlockingScheduler()
+
+
+def is_sarge_snoozed() -> bool:
+    """Check if Life Sarge is currently snoozed."""
+    snooze = snooze_collection.find_one({"_id": "sarge"})
+    if snooze and snooze.get("until") and snooze["until"] > datetime.now():
+        print(f"[life-sarge] Snoozed until {snooze['until']} — skipping")
+        return True
+    return False
 
 # Allowed check-in windows (hour ranges, inclusive)
 WEEKDAY_WINDOWS = [(8, 8), (17, 22)]  # 8-9 AM, 5-10 PM
@@ -62,7 +78,15 @@ def trigger_agent(agent_id: str, message: str, slack_channel: str = "", session_
         resp = httpx.post(url, data=data, timeout=300)
         print(f"[{agent_id}] {resp.status_code} — {message[:60]}")
         if slack_channel and resp.status_code == 200:
-            post_to_slack(slack_channel, resp.text)
+            try:
+                run_data = resp.json()
+                content = run_data.get("content", "")
+                if content:
+                    post_to_slack(slack_channel, content)
+                else:
+                    print(f"[{agent_id}] No content in response")
+            except Exception as e:
+                print(f"[{agent_id}] Failed to parse response: {e}")
     except httpx.RequestError as e:
         print(f"[{agent_id}] ERROR — {e}")
 
@@ -77,9 +101,24 @@ def trigger_team(team_id: str, message: str, slack_channel: str = "", session_id
         resp = httpx.post(url, data=data, timeout=300)
         print(f"[{team_id}] {resp.status_code} — {message[:60]}")
         if slack_channel and resp.status_code == 200:
-            post_to_slack(slack_channel, resp.text)
+            try:
+                run_data = resp.json()
+                content = run_data.get("content", "")
+                if content:
+                    post_to_slack(slack_channel, content)
+                else:
+                    print(f"[{team_id}] No content in response")
+            except Exception as e:
+                print(f"[{team_id}] Failed to parse response: {e}")
     except httpx.RequestError as e:
         print(f"[{team_id}] ERROR — {e}")
+
+
+def trigger_sarge_checkin(prompt: str):
+    """Trigger a Sarge check-in, respecting snooze."""
+    if is_sarge_snoozed():
+        return
+    trigger_agent("life-sarge", prompt, slack_channel=SARGE_CHANNEL)
 
 
 def random_times_in_windows(windows: list[tuple[int, int]], count: int, base_date: datetime) -> list[datetime]:
@@ -130,10 +169,9 @@ def plan_sarge_checkins():
     for i, t in enumerate(times):
         prompt = random.choice(SARGE_CHECKIN_PROMPTS)
         scheduler.add_job(
-            trigger_agent,
+            trigger_sarge_checkin,
             trigger=DateTrigger(run_date=t),
-            args=["life-sarge", prompt],
-            kwargs={"slack_channel": SARGE_CHANNEL},
+            args=[prompt],
             id=f"sarge-random-{i}",
             replace_existing=True,
         )
@@ -157,6 +195,8 @@ def sarge_daily_planner():
 # ─────────────────────────────────────────────
 @scheduler.scheduled_job("cron", day_of_week="sun", hour=20, minute=0, id="sarge-weekly-report")
 def sarge_weekly_report():
+    if is_sarge_snoozed():
+        return
     trigger_agent("life-sarge", "Compile the full weekly performance report for Servio. Include: wins, failures, patterns, scores, and next week's plan. Be savage. No sugar coating.", slack_channel=SARGE_CHANNEL)
 
 
