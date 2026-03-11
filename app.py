@@ -363,6 +363,8 @@ calendar_agent = Agent(
         "When creating events, confirm what was created: title, date, time, and duration.",
         "If the user doesn't specify a duration, default to 1 hour.",
         "If the user doesn't specify a time, ask for clarification.",
+        # Flight itineraries (text or image)
+        "When the user provides a flight itinerary — in pasted text or in an attached image — treat it as a request to add the flight to the calendar. Extract: airline, flight number, confirmation code, origin airport code, destination airport code, departure date and time, arrival date and time, and terminal (if shown). Create ONE calendar event: title = '[Airline] [Flight#] [Origin] → [Destination]' (e.g. 'JetBlue 1105 EWR → FLL'); start = departure date/time; end = arrival date/time (do not use 1 hour default — the event spans the flight). Put in the event description: confirmation code, terminal, and flight number for quick reference. If the year is missing from the itinerary, use the current year or the next occurrence of that month/day from today.",
         # Resolve event by context — never ask the user for event ID
         "For update or delete: never ask the user for the event ID. You do not know it; the user does not know it. Use list_events or fetch_all_events to get events (each event has an 'id' field). Use that id when calling update_event or delete_event.",
         "When the user says 'the event', 'update the event', 'delete it', or similar without naming one: use conversation context. The event they mean is usually the one just created or last discussed in this conversation. If you just created an event (e.g. for Saturday), 'update the event to be 3 hours' means that Saturday event — update it in place; do not create a new event.",
@@ -388,7 +390,7 @@ command_center = Team(
         "If it's about news, Twitter/X, or current events — delegate to X News Desk.",
         "If it's about scraping a website or extracting data — delegate to Web Scraper.",
         "If it's about crypto, prices, or market moves — delegate to Crypto Watcher.",
-        "If it's about calendar, scheduling, events, or meetings — delegate to Calendar Assistant.",
+        "If it's about calendar, scheduling, events, meetings, flight itineraries, or adding a flight from pasted text or an image — delegate to Calendar Assistant.",
         "When you delegate to Calendar Assistant: return only that member's response. Do not add your own summary, prefix (e.g. 'OK.'), or repeat the calendar content.",
         "If unclear, ask the user to clarify.",
     ],
