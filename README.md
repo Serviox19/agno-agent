@@ -31,6 +31,16 @@ Activate the venv with `source venv/bin/activate` each time you open a new termi
 | `MONGO_URL` | Your MongoDB connection string (local or Atlas) |
 | `MONGO_DB_NAME` | Database name within your cluster (default: `agno_agents`) |
 
+### Google Calendar Setup (for Calendar Assistant)
+
+1. Go to [Google Cloud Console](https://console.cloud.google.com/)
+2. Create or select a project
+3. Enable **Google Calendar API** (APIs & Services → Enable APIs)
+4. Create OAuth credentials: APIs & Services → Credentials → Create Credentials → OAuth client ID → Desktop app
+5. Download the JSON and save as `credentials.json` in the project root
+6. **Run the app locally once** — a browser opens for OAuth consent. Authorize; tokens save to `token.json`.
+7. **For deploy (e.g. Render):** Do not commit these files. In Render (or any host), set env vars with the **entire file contents** (copy-paste the JSON): `GOOGLE_CREDENTIALS_JSON` and `GOOGLE_TOKEN_JSON`. The app writes them to disk at startup so the Calendar tools work. Complete OAuth locally first to get `token.json`, then paste both into env.
+
 ## Running Locally
 
 Two processes — the server and the scheduler:

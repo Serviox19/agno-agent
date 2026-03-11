@@ -3,6 +3,7 @@
 *.env
 db_creds.txt
 credentials*.json
+token.json
 *.pem
 *.key
 

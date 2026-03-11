@@ -14,12 +14,26 @@ from agno.os import AgentOS
 from agno.os.interfaces.slack import Slack
 from agno.team.team import Team
 from agno.tools.firecrawl import FirecrawlTools
+from agno.tools.googlecalendar import GoogleCalendarTools
 from agno.tools.websearch import WebSearchTools
 from agno.tools.website import WebsiteTools
 from tools.mongo_save import MongoSaveTools
 from fastapi import Form
 from fastapi.responses import PlainTextResponse
 from pymongo import MongoClient
+
+# ─────────────────────────────────────────────
+# Paths (so calendar token/creds are always in project root)
+# ─────────────────────────────────────────────
+ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# On Render (no browser): write credentials/token from env so Calendar works
+for env_key, filename in (("GOOGLE_CREDENTIALS_JSON", "credentials.json"), ("GOOGLE_TOKEN_JSON", "token.json")):
+    val = os.getenv(env_key)
+    if val:
+        path = os.path.join(ROOT_DIR, filename)
+        with open(path, "w") as f:
+            f.write(val)
 
 # ─────────────────────────────────────────────
 # Database
@@ -59,6 +73,9 @@ xai_model = XAIResponses(id="grok-4-1-fast-reasoning")
 
 # Grok via OpenRouter — for compilation without x_search costs
 grok_openrouter = OpenRouter(id="x-ai/grok-3-beta")
+
+# Gemini Flash via OpenRouter — fast and cheap for simple tasks
+gemini_model = OpenRouter(id="google/gemini-2.0-flash-001")
 
 # ─────────────────────────────────────────────
 # Agent 1: Life Sarge (Andrew Tate style)
@@ -306,13 +323,42 @@ crypto_agent = Agent(
 )
 
 # ─────────────────────────────────────────────
+# Agent 5: Calendar Assistant
+# ─────────────────────────────────────────────
+calendar_agent = Agent(
+    name="Calendar Assistant",
+    id="calendar-assistant",
+    role="Google Calendar manager",
+    model=gemini_model,
+    db=db,
+    tools=[
+        GoogleCalendarTools(
+            credentials_path=os.path.join(ROOT_DIR, "credentials.json"),
+            token_path=os.path.join(ROOT_DIR, "token.json"),
+            allow_update=True,
+        ),
+    ],
+    instructions=[
+        "You manage the user's Google Calendar.",
+        "Create events when asked — include title, start time, end time, and description if provided.",
+        "List upcoming events when asked.",
+        "Parse natural language dates and times intelligently (e.g., 'tomorrow at 3pm', 'next Monday').",
+        "When creating events, confirm what was created: title, date, time, and duration.",
+        "If the user doesn't specify a duration, default to 1 hour.",
+        "If the user doesn't specify a time, ask for clarification.",
+    ],
+    add_datetime_to_context=True,
+    markdown=True,
+)
+
+# ─────────────────────────────────────────────
 # Team: Command Center (auto-routes messages)
 # ─────────────────────────────────────────────
 command_center = Team(
     name="Command Center",
     id="command-center",
     model=openrouter_model,
-    members=[life_sarge, news_team, scraper_agent, crypto_agent],
+    members=[life_sarge, news_team, scraper_agent, crypto_agent, calendar_agent],
     db=db,
     instructions=[
         "You are a personal command center that routes requests to the right specialist.",
@@ -321,6 +367,7 @@ command_center = Team(
         "If it's about news, Twitter/X, or current events — delegate to X News Desk.",
         "If it's about scraping a website or extracting data — delegate to Web Scraper.",
         "If it's about crypto, prices, or market moves — delegate to Crypto Watcher.",
+        "If it's about calendar, scheduling, events, or meetings — delegate to Calendar Assistant.",
         "If unclear, ask the user to clarify.",
     ],
     markdown=True,
@@ -332,7 +379,7 @@ command_center = Team(
 # ─────────────────────────────────────────────
 agent_os = AgentOS(
     id="personal-command-center",
-    agents=[life_sarge, x_fetcher, x_compiler, news_analyst, scraper_agent, crypto_agent],
+    agents=[life_sarge, x_fetcher, x_compiler, news_analyst, scraper_agent, crypto_agent, calendar_agent],
     teams=[news_team, command_center],
     db=db,
     interfaces=[
