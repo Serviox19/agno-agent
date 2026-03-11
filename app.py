@@ -39,7 +39,11 @@ def _secret_file(name: str) -> str:
     return root_path
 
 # Optional: write from env (for hosts that don't have Secret Files)
-for env_key, filename in (("GOOGLE_CREDENTIALS_JSON", "credentials.json"), ("GOOGLE_TOKEN_JSON", "token.json")):
+_env_file_pairs = [
+    ("GOOGLE_CREDENTIALS_JSON", "credentials.json"),
+    ("GOOGLE_TOKEN_JSON", "token.json"),
+]
+for env_key, filename in _env_file_pairs:
     val = os.getenv(env_key)
     if val:
         path = os.path.join(ROOT_DIR, filename)
