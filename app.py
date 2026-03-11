@@ -23,11 +23,22 @@ from fastapi.responses import PlainTextResponse
 from pymongo import MongoClient
 
 # ─────────────────────────────────────────────
-# Paths (so calendar token/creds are always in project root)
+# Paths (calendar: project root, or Render Secret Files at /etc/secrets/)
 # ─────────────────────────────────────────────
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+SECRETS_DIR = "/etc/secrets"
 
-# On Render (no browser): write credentials/token from env so Calendar works
+def _secret_file(name: str) -> str:
+    """Use file from project root, or from Render Secret Files mount."""
+    root_path = os.path.join(ROOT_DIR, name)
+    secrets_path = os.path.join(SECRETS_DIR, name)
+    if os.path.isfile(root_path):
+        return root_path
+    if os.path.isfile(secrets_path):
+        return secrets_path
+    return root_path
+
+# Optional: write from env (for hosts that don't have Secret Files)
 for env_key, filename in (("GOOGLE_CREDENTIALS_JSON", "credentials.json"), ("GOOGLE_TOKEN_JSON", "token.json")):
     val = os.getenv(env_key)
     if val:
@@ -333,8 +344,8 @@ calendar_agent = Agent(
     db=db,
     tools=[
         GoogleCalendarTools(
-            credentials_path=os.path.join(ROOT_DIR, "credentials.json"),
-            token_path=os.path.join(ROOT_DIR, "token.json"),
+            credentials_path=_secret_file("credentials.json"),
+            token_path=_secret_file("token.json"),
             allow_update=True,
         ),
     ],

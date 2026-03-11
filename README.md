@@ -39,7 +39,7 @@ Activate the venv with `source venv/bin/activate` each time you open a new termi
 4. Create OAuth credentials: APIs & Services → Credentials → Create Credentials → OAuth client ID → Desktop app
 5. Download the JSON and save as `credentials.json` in the project root
 6. **Run the app locally once** — a browser opens for OAuth consent. Authorize; tokens save to `token.json`.
-7. **For deploy (e.g. Render):** Do not commit these files. In Render (or any host), set env vars with the **entire file contents** (copy-paste the JSON): `GOOGLE_CREDENTIALS_JSON` and `GOOGLE_TOKEN_JSON`. The app writes them to disk at startup so the Calendar tools work. Complete OAuth locally first to get `token.json`, then paste both into env.
+7. **For deploy (e.g. Render):** Do not commit these files. **Option A — Render Secret Files (recommended):** In Render → Service → Secret Files, add `credentials.json` and `token.json` (upload or paste contents). They are read from the app root or `/etc/secrets/`. **Option B:** Set env vars `GOOGLE_CREDENTIALS_JSON` and `GOOGLE_TOKEN_JSON` to the full file contents; the app writes them at startup. Complete OAuth locally first to get `token.json`.
 
 ## Running Locally
 
