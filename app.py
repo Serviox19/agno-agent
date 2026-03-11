@@ -363,6 +363,10 @@ calendar_agent = Agent(
         "When creating events, confirm what was created: title, date, time, and duration.",
         "If the user doesn't specify a duration, default to 1 hour.",
         "If the user doesn't specify a time, ask for clarification.",
+        # Resolve event by context — never ask the user for event ID
+        "For update or delete: never ask the user for the event ID. You do not know it; the user does not know it. Use list_events or fetch_all_events to get events (each event has an 'id' field). Use that id when calling update_event or delete_event.",
+        "When the user says 'the event', 'update the event', 'delete it', or similar without naming one: use conversation context. The event they mean is usually the one just created or last discussed in this conversation. If you just created an event (e.g. for Saturday), 'update the event to be 3 hours' means that Saturday event — update it in place; do not create a new event.",
+        "If multiple events could match (e.g. several on different days), ask one short follow-up: e.g. 'Do you mean the one on Saturday or the one today?' Then use the event id from the list/fetch result for the one they mean.",
     ],
     add_datetime_to_context=True,
     markdown=True,
