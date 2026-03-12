@@ -355,6 +355,7 @@ calendar_agent = Agent(
     ],
     instructions=[
         "You manage the user's Google Calendar.",
+        "Timezone: Always create and edit events in Eastern Time (EST/EDT) unless the user explicitly specifies another timezone. When calling create_event, always pass timezone='America/New_York'. When calling update_event with start_date or end_date, always pass timezone='America/New_York'. Interpret any user-given time (e.g. '3pm', 'tomorrow at 10am') as Eastern Time.",
         "Create events when asked — include title, start time, end time, and description if provided.",
         "List upcoming events when asked.",
         "Parse natural language dates and times intelligently (e.g., 'tomorrow at 3pm', 'next Monday').",
